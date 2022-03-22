@@ -17,7 +17,9 @@ import javax.lang.model.util.Types
 class FloppyProcessor: AbstractProcessor() {
     companion object {
         const val FLOPPY_PACKAGE: String = "org.axen.floppy.core"
+        const val FLOPPY_BINDING_PACKAGE: String = "org.axen.floppy.binding"
         const val FLOPPY_DELEGATE_CLASS: String = "${FLOPPY_PACKAGE}.FloppyDelegate"
+        const val FLOPPY_FLOPPY_CLASS: String = "Floppy"
         const val FLOPPY_DELEGATE_BINDING_CLASS_NAME: String = "FloppyDelegateBinding"
         const val FLOPPY_INTERCEPTOR_BINDING_CLASS_NAME: String = "FloppyInterceptorBinding"
     }
@@ -60,11 +62,6 @@ class FloppyProcessor: AbstractProcessor() {
         val elements = p1?.getElementsAnnotatedWith(BindFloppyMethod::class.java)
         if (!elements.isNullOrEmpty()) {
             val codeBlock = CodeBlock.builder()
-                .addStatement(
-                    "Map<String, \$T> map = new \$T()",
-                    ClassName.get(delegate as TypeElement),
-                    HashMap::class.java
-                )
             for (element in elements) {
                 if (element.kind != ElementKind.CLASS) {
                     throw FloppyException("Only support for field of annotation: $element")
@@ -74,28 +71,23 @@ class FloppyProcessor: AbstractProcessor() {
                     val annotation = element.getAnnotation(BindFloppyMethod::class.java)
                     val methodName = annotation.value
                     codeBlock.addStatement(
-                        "map.put(\$S, new \$T())",
+                        "floppy.addDelegate(\$S, new \$T())",
                         methodName,
                         ClassName.get(element as TypeElement)
                     )
                 }
             }
-            codeBlock.addStatement("return map")
-            val parameterizedType = ParameterizedTypeName.get(
-                ClassName.get(Map::class.java),
-                ClassName.get(String::class.java),
-                ClassName.get(delegate)
-            )
+            val parameterName = ClassName.get(FLOPPY_PACKAGE, FLOPPY_FLOPPY_CLASS)
             val method = MethodSpec
-                .methodBuilder("get")
-                .addModifiers(Modifier.STATIC)
+                .methodBuilder("bind")
+                .addParameter(parameterName, "floppy")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .addCode(codeBlock.build())
-                .returns(parameterizedType)
             val type = TypeSpec
                 .classBuilder(FLOPPY_DELEGATE_BINDING_CLASS_NAME)
                 .addMethod(method.build())
                 .build()
-            return JavaFile.builder(FLOPPY_PACKAGE, type).build()
+            return JavaFile.builder(FLOPPY_BINDING_PACKAGE, type).build()
         }
         return null
     }
@@ -114,18 +106,18 @@ class FloppyProcessor: AbstractProcessor() {
                 val isAssignable = typeUtils?.isAssignable(element.asType(), delegate.asType())
                 if (isAssignable == true) {
                     codeBlock.addStatement(
-                        "return new \$T()",
-                        ClassName.get(element as TypeElement
-                        )
+                        "floppy.setInterceptor(new \$T())",
+                        ClassName.get(element as TypeElement)
                     )
                     break
                 }
             }
+            val parameterName = ClassName.get(FLOPPY_PACKAGE, FLOPPY_FLOPPY_CLASS)
             val method = MethodSpec
-                .methodBuilder("get")
-                .addModifiers(Modifier.STATIC)
+                .methodBuilder("bind")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .addParameter(parameterName, "floppy")
                 .addCode(codeBlock.build())
-                .returns(ClassName.get(delegate as TypeElement))
             val type = TypeSpec
                 .classBuilder(FLOPPY_INTERCEPTOR_BINDING_CLASS_NAME)
                 .addMethod(method.build())
