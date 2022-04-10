@@ -38,27 +38,26 @@ class Floppy private constructor() {
     }
 
     private fun invoke(
-        context: Context? = null,
         method: String,
         arguments: Any? = null,
+        context: Context? = null,
         callback: FloppyCallback? = null
     ) {
         val delegate: FloppyDelegate? = delegates[method]
-        val handler = if (callback == null) null else FloppyHandler(callback);
+        val handler = if (callback == null) null else FloppyHandler(callback)
         delegate?.let {
-
             val result = it.invoke(context, method, arguments, handler)
             callback?.onSuccess(result)
         } ?: interceptor?.invoke(context, method, arguments, handler)
     }
 
-    fun getDelegate(method: String): FloppyDelegate? = delegates[method]
+    fun get(method: String): FloppyDelegate? = delegates[method]
 
-    fun addDelegate(method: String, delegate: FloppyDelegate) {
+    fun define(method: String, delegate: FloppyDelegate) {
         delegates[method] = delegate
     }
 
-    fun removeDelegate(method: String) {
+    fun remove(method: String) {
         delegates.remove(method)
     }
 
@@ -67,13 +66,13 @@ class Floppy private constructor() {
         private var arguments: Any? = null
         private var callback: FloppyCallback? = null
 
-        fun context(context: Context?) : FloppyBuilder {
-            this.context = context
+        fun arguments(arguments: Any?) : FloppyBuilder {
+            this.arguments = arguments
             return this
         }
 
-        fun arguments(arguments: Any?) : FloppyBuilder {
-            this.arguments = arguments
+        fun context(context: Context?) : FloppyBuilder {
+            this.context = context
             return this
         }
 
@@ -82,8 +81,19 @@ class Floppy private constructor() {
             return this
         }
 
+        fun callback(callback: ((value: Any?) -> Unit)?): FloppyBuilder {
+            callback?.let {
+                this.callback = object: FloppyCallback {
+                    override fun onSuccess(value: Any?) {
+                        it.invoke(value)
+                    }
+                }
+            }
+            return this
+        }
+
         fun invoke() {
-            instance.invoke(context, method, arguments, callback)
+            instance.invoke(method, arguments, context, callback)
         }
     }
 }
